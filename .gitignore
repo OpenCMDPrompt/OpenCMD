@@ -1,0 +1,10 @@
+build/
+*.exe
+*.dll
+*.o
+*.obj
+*.a
+*.lib
+.DS_Store
+Thumbs.db
+*~
