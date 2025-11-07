@@ -4,6 +4,12 @@
 #include "macros.h"
 
 int run_command(char *cmd, int mode) {
-    fprintf(stderr, "bad command: %s\n", cmd);
-    return 127;
+    // TODO: Add support for external commands, add support for arguments
+    if (strcmp(cmd, "exit") == 0) {
+        exit(0);
+    }
+    else {
+        fprintf(stderr, "bad command: %s\n", cmd);
+        return 9009;
+    }
 }
