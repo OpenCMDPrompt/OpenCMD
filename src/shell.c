@@ -12,30 +12,40 @@
 #define PATH_MAX MAX_PATH
 #endif
 
-int shell() {
-    printf("OpenCMD %s. Visit https://www.gnu.org/licenses/gpl-3.0.en.html#license-text for the license text.\n", VERSION);
-    
-    /* Shell loop */
-    int last_error_code;
-    char *input;
+char *custom_prompt = NULL;
 
+int shell() {
+    printf("OpenCMD %s. Visit https://www.gnu.org/licenses/gpl-3.0.en.html#license-text.\n", VERSION);
+
+    int last_error_code = 0;
+    char *input;
     char cwd[MAX_PATH];
-    DWORD len = GetCurrentDirectoryA(sizeof(cwd), cwd);
-    if (len == 0) {
-        printf("GetCurrentDirectory failed (error %lu)\n", GetLastError());
-        return 1;
-    }
-    
-    char prompt[PATH_MAX + 4];
-    snprintf(prompt, sizeof(prompt), "%s>", cwd);
-    
-    while ((input = readline(prompt)) != NULL) {
+
+    while (1) {
+        DWORD len = GetCurrentDirectoryA(sizeof(cwd), cwd);
+        if (len == 0) {
+            printf("GetCurrentDirectory failed (error %lu)\n", (unsigned long)GetLastError());
+            return 1;
+        }
+
+        /* Build the prompt dynamically */
+        char prompt[PATH_MAX + 16];
+        if (custom_prompt) {
+            snprintf(prompt, sizeof(prompt), "%s", custom_prompt);
+        } else {
+            snprintf(prompt, sizeof(prompt), "%s>", cwd);
+        }
+
+        input = readline(prompt);
+        if (!input) break;
+
         if (*input) {
-            int state = run_command(input, 0);
+            int state = run_command(input, SHELL_MODE);
             add_history(input);
             last_error_code = state;
         }
-        free(input); // Must free memory allocated by readline
+
+        free(input);
     }
 
     return last_error_code;

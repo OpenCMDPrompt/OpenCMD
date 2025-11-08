@@ -1,9 +1,10 @@
-#pragma once // run_command.h
+#pragma once
 
+#include <stdbool.h>
+#include "macros.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "macros.h"
 #include <windows.h>
 
 void ClearScreen(void) {
@@ -14,11 +15,9 @@ void ClearScreen(void) {
     COORD home = {0, 0};
 
     hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (hConsole == INVALID_HANDLE_VALUE)
-        return;
+    if (hConsole == INVALID_HANDLE_VALUE) return;
 
-    if (!GetConsoleScreenBufferInfo(hConsole, &csbi))
-        return;
+    if (!GetConsoleScreenBufferInfo(hConsole, &csbi)) return;
 
     consoleSize = csbi.dwSize.X * csbi.dwSize.Y;
 
@@ -27,28 +26,153 @@ void ClearScreen(void) {
     SetConsoleCursorPosition(hConsole, home);
 }
 
-
-// Helper to detect if /? is present in arguments
 int is_help_flag_present(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "/?") == 0) {
-            return 1;
+        if (strcmp(argv[i], "/?") == 0) return 1;
+    }
+    return 0;
+}
+
+typedef int (*command_handler_t)(int argc, char **argv);
+
+int cmd_exit(int argc, char **argv) {
+    if (is_help_flag_present(argc, argv)) {
+        printf("Run 'help exit' for information.\n");
+        return 0;
+    }
+    int code = 0;
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] != '/') {
+            code = atoi(argv[i]);
+            break;
         }
     }
+    exit(code);
+}
+
+int cmd_cls(int argc, char **argv) {
+    if (is_help_flag_present(argc, argv)) {
+        printf("Run 'help cls' for information.\n");
+        return 0;
+    }
+    ClearScreen();
+    return 0;
+}
+
+int cmd_ver(int argc, char **argv) {
+    if (is_help_flag_present(argc, argv)) {
+        printf("Run 'help ver' for information.\n");
+        return 0;
+    }
+    printf("Microsoft Windows [Version 10.0.26220.1337]\n");
+    return 0;
+}
+
+int cmd_cd(int argc, char **argv) {
+    if (is_help_flag_present(argc, argv)) {
+        printf("Run 'help cd' for information.\n");
+        return 0;
+    }
+
+    TCHAR currentDir[MAX_PATH] = { 0 };
+
+    if (!GetCurrentDirectory(MAX_PATH, currentDir)) {
+        return 1;
+    }
+
+    if (argc == 1) {
+        printf("%s\n", currentDir);
+    }
+
+    const char *targetDir = ".";
+    bool switch_drive = false;
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '/') {
+            if (toupper(argv[i][1]) == 'D') {
+                switch_drive = true;
+            }
+            break;
+        } 
+    }
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] != '/') {
+            targetDir = argv[i];
+            break;
+        } 
+    }
+
+    if (toupper(currentDir[0]) == toupper(targetDir[0])) {
+        if (SetCurrentDirectory(targetDir)) {
+            return 0;
+        } else {
+            fprintf(stderr, "The system could not find the path specified.\n");
+            return 1;
+        }
+    } else {
+        if (switch_drive == true) {
+            if (SetCurrentDirectory(targetDir)) {
+                return 0;
+            } else {
+                fprintf(stderr, "The system could not find the path specified.\n");
+                return 1;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+int cmd_help(int argc, char **argv);
+
+typedef struct {
+    const char *name;
+    command_handler_t handler;
+} Command;
+
+Command commands[] = {
+    {"exit", cmd_exit},
+    {"cls", cmd_cls},
+    {"ver", cmd_ver},
+    {"help", cmd_help},
+    {"cd", cmd_cd},
+    {NULL, NULL}
+};
+
+typedef struct {
+    const char *msg;
+    const char *cmd;
+} Help;
+
+Help help_msgs[] = {
+    {"Exits the program CMD.EXE or the current batch file.\n\nEXIT [code]\n\ncode: specifies an exit code\n", "exit"},
+    {NULL, NULL}
+};
+
+int cmd_help(int argc, char **argv) {
+    if (argc == 1 || is_help_flag_present(argc, argv)) {
+        printf("Available commands:\n\nhelp\nver\ncls\nexit\n\nType help <command> for details.\n");
+        return 0;
+    }
+    char *sub = argv[1];
+    for (int i = 0; help_msgs[i].cmd; i++) {
+        if (strcmp(sub, help_msgs[i].cmd) == 0) {
+            printf(help_msgs[i].msg);
+            return 0;
+        }
+    }
+    printf("No help available for: %s\n", sub);
     return 0;
 }
 
 int run_command(char *cmd, int mode) {
     if (!cmd) return -1;
-
-    // Duplicate string to safely modify it
     char *cmd_copy = strdup(cmd);
     if (!cmd_copy) return -1;
 
-    // Trim leading whitespace
     while (*cmd_copy == ' ' || *cmd_copy == '\t' || *cmd_copy == '\n') cmd_copy++;
 
-    // Tokenize command
     char *args[64] = {0};
     int argc = 0;
     char *rest = cmd_copy;
@@ -63,63 +187,27 @@ int run_command(char *cmd, int mode) {
 
     if (argc == 0) { free(cmd_copy); return -1; }
 
-    char *command = args[0];
-
-    if (strcmp(command, "exit") == 0) {
-        if (is_help_flag_present(argc, args)) {
-            printf("Run 'help exit' for information.\n");
-        } else {
-            int exit_code = 0;
-            for (int i = 1; i < argc; i++) {
-                if (args[i][0] != '/') { // first non-flag argument
-                    exit_code = atoi(args[i]);
-                    break;
-                }
-            }
+    for (int i = 0; commands[i].name; i++) {
+        if (strcmp(args[0], commands[i].name) == 0) {
+            int ret = commands[i].handler(argc, args);
             free(cmd_copy);
-            exit(exit_code);
-        }
-    } else if (strcmp(command, "cls") == 0) {
-        if (is_help_flag_present(argc, args)) {
-            printf("Run 'help cls' for information.\n");
-        } else {
-            ClearScreen();
+            return ret;
         }
     }
-    else if (strcmp(command, "ver") == 0) {
-        if (is_help_flag_present(argc, args)) {
-            printf("Run 'help ver' for information.\n");
-        } else {
-            printf("Microsoft Windows [Version 10.0.26220.1337]\n");
-        }
-    }
-    else if (strcmp(command, "help") == 0) {
-        if (is_help_flag_present(argc, args) || argc == 1) {
-            // General help
-            printf(
-                "Available commands:\n\n"
-                "help - Show help information\n"
-                "ver  - Show version information\n"
-                "cls  - Clear the screen\n"
-                "exit - Exit the program\n\n"
-                "Type help <command> for help on a specific command.\n"
-            );
-        } else {
-            // Specific help
-            char *sub = args[1];
-            if (strcmp(sub, "exit") == 0) printf("exit [code] - Exits the program with optional exit code.\n");
-            else if (strcmp(sub, "ver") == 0) printf("ver - Displays the program version.\n");
-            else if (strcmp(sub, "help") == 0) printf("help [command] - Shows help information.\n");
-            else if (strcmp(sub, "cls") == 0) printf("cls - Clears the screen.\n");
-            else printf("No help available for: %s\n", sub);
-        }
-    }
-    else {
-        fprintf(stderr, "bad command: %s\n", command);
+
+    STARTUPINFO si = {0};
+    PROCESS_INFORMATION pi = {0};
+    si.cb = sizeof(si);
+    if (!CreateProcess(NULL, cmd_copy, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        fprintf(stderr, "'%s' is not recognized as an internal or external command.\n", args[0]);
         free(cmd_copy);
         return 9009;
     }
-
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exit_code;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
     free(cmd_copy);
-    return 0;
+    return (int)exit_code;
 }
