@@ -35,7 +35,7 @@ int shell() {
         } else {
             snprintf(prompt, sizeof(prompt), "%s>", cwd);
         }
-
+        SetCurrentDirectoryA(cwd);
         input = readline(prompt);
         if (!input) break;
 

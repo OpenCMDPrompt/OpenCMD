@@ -2,9 +2,9 @@
 #include <stdlib.h>
 
 /* External functions */
-extern shell();
-extern dosbatch();
-extern ntbatch();
+extern int shell(void);
+extern int dosbatch(void);
+extern int ntbatch(void);
 
 /* Entry point */
 int main() {
