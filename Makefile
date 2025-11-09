@@ -1,5 +1,5 @@
 # Compiler and flags
-CC = gcc
+CC = g++
 CFLAGS = -Wall -Wextra -g
 LDFLAGS = -lreadline
 
@@ -8,7 +8,7 @@ SRC_DIR = src
 BUILD_DIR = build
 
 # Files
-SRC = $(SRC_DIR)/*.c
+SRC = $(SRC_DIR)/*.cpp
 BIN = $(BUILD_DIR)/opencmd.exe
 
 # Default target
