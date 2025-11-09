@@ -11,6 +11,7 @@
 #define PATH_MAX MAX_PATH
 #endif
 
+bool echo_enabled = true;
 std::string custom_prompt;
 
 int shell() {
@@ -34,6 +35,9 @@ int shell() {
             prompt = custom_prompt;
         } else {
             prompt = std::string(cwd) + ">";
+        }
+        if (!echo_enabled) {
+            prompt = "";
         }
 
         SetCurrentDirectoryA(cwd);
