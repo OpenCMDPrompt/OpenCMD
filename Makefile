@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = g++
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -g -O3
 LDFLAGS = -lreadline
 
 # Directories
@@ -15,8 +15,8 @@ BIN = $(BUILD_DIR)/opencmd.exe
 all: $(BIN)
 
 # Build rule
-$(BIN): $(SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(SRC) -o $(BIN) $(LDFLAGS)
+$(BIN): $(SRC) $(RES_OBJ) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(SRC) $(RES_OBJ) -o $(BIN) $(LDFLAGS)
 
 # Create build directory if it doesn't exist
 $(BUILD_DIR):

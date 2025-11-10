@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cwctype>
 #include <iostream>
 #include <windows.h>
 #include "macros.hpp"
@@ -42,13 +43,17 @@ public:
 
     std::string parse_quoted(char quote) {
         std::string out;
-        ++p;
+        ++p; // skip opening quote
         while (*p) {
             if (*p == quote) { ++p; break; }
             if (*p == '\\') {
-                ++p;
-                if (!*p) break;
-                out.push_back(*p);
+                const char* next = p + 1;
+                if (*next == quote || *next == '\\') {
+                    ++p; // skip backslash
+                    out.push_back(*p); // add escaped char
+                } else {
+                    out.push_back(*p); // keep the backslash as-is
+                }
                 ++p;
             } else {
                 out.push_back(*p);
@@ -128,6 +133,14 @@ public:
 
 }
 
+std::string canonicalize(const std::string& path) {
+    char buffer[MAX_PATH];
+    DWORD result = GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr);
+    if (result == 0 || result > MAX_PATH) {
+        throw std::runtime_error("Failed to canonicalize path");
+    }
+    return std::string(buffer);
+}
 
 void ClearScreen() {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -203,8 +216,8 @@ int cmd_echo(int argc, char** argv) {
     return 0;
 }
 
-int cmd_ver(int argc, char**) {
-    if (is_help_flag_present(argc, nullptr)) {
+int cmd_ver(int argc, char** argv) {
+    if (is_help_flag_present(argc, argv)) {
         std::cout << "Run 'help ver' for information." << "\n";
         return 0;
     }
@@ -214,9 +227,9 @@ int cmd_ver(int argc, char**) {
     HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
     if (hMod) {
         typedef LONG(WINAPI* RtlGetVersionPtr)(PRTL_OSVERSIONINFOW);
-        RtlGetVersionPtr fn = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
+        RtlGetVersionPtr fn = reinterpret_cast<RtlGetVersionPtr>(::GetProcAddress(hMod, "RtlGetVersion"));
         if (fn != nullptr) {
-            RTL_OSVERSIONINFOW rovi = {0};
+            RTL_OSVERSIONINFOW rovi{};  // zero-initialize all members
             rovi.dwOSVersionInfoSize = sizeof(rovi);
             if (fn(&rovi) == 0) {
                 major = rovi.dwMajorVersion;
@@ -280,6 +293,11 @@ int cmd_cd(int argc, char** argv) {
 
     char currentDir[MAX_PATH]{0};
     if (!GetCurrentDirectoryA(MAX_PATH, currentDir)) return 1;
+    if (!SetCurrentDirectoryA(currentDir)) {
+        std::cerr << "The system could not find the path specified." << "\n";
+        return 1;
+    }
+
 
     if (argc == 1) {
         std::cout << currentDir << "\n";
@@ -302,7 +320,7 @@ int cmd_cd(int argc, char** argv) {
 
     std::unique_ptr<char, decltype(&std::free)> argcopy(strdup(arg), &std::free);
     std::string target = trimString(argcopy.get());
-    target = strip_quotes(target);
+    //target = strip_quotes(target);
 
     bool has_drive = target.size() >= 2 && std::isalpha(static_cast<unsigned char>(target[0])) && target[1] == ':';
     char cur_drive = std::toupper(static_cast<unsigned char>(currentDir[0]));
@@ -317,7 +335,28 @@ int cmd_cd(int argc, char** argv) {
     set_drive_dir(cur_drive, currentDir);
 
     if (!has_drive) {
-        if (!SetCurrentDirectoryA(target.c_str())) {
+        if (target.at(0) == '\\' || target.at(0) == '/') {
+            std::string cur_drive_full_with_colon = "a";
+            cur_drive_full_with_colon = cur_drive;
+            std::string targetAbs = cur_drive_full_with_colon + ":\\" + target;
+            if (!SetCurrentDirectoryA(targetAbs.c_str())) {
+                std::cerr << "The system could not find the path specified." << "\n";
+                return 1;
+            }
+            return 0;
+        }
+
+        std::string currentDir2 = currentDir;
+
+        std::string target2 = target;
+
+        std::string targetAbs = currentDir2 + "\\" + target2;
+        targetAbs = canonicalize(targetAbs);
+ 
+        if (!SetCurrentDirectoryA(targetAbs.c_str())) {
+            DWORD errorCode = GetLastError();
+            std::cout << "Failed to open file. Error code: " << errorCode << "\n";
+            std::cout << "SetCurrentDirectoryA(" << targetAbs << ")\n";
             std::cerr << "The system could not find the path specified." << "\n";
             return 1;
         }

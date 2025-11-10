@@ -20,6 +20,8 @@ int shell() {
 
     int last_error_code = 0;
 
+    rl_bind_key('\t', rl_complete);
+
     while (true) {
         char cwd[PATH_MAX];
         DWORD len = GetCurrentDirectoryA(sizeof(cwd), cwd);
