@@ -13,17 +13,15 @@
 
 extern bool echo_enabled;
 
-// Forward declarations
 char* trimString(char* str);
 using command_handler_t = int(*)(int argc, char** argv);
 
-// Tokenizer and AST for command parsing
 namespace cmd {
 
 enum class TokenKind {
     Identifier,
     String,
-    Flag,       // starts with '/'
+    Flag,
     End,
 };
 
@@ -32,22 +30,19 @@ struct Token {
     std::string text;
 };
 
-// Tokenizer: splits a command line into tokens while honoring quotes and escapes
 class Tokenizer {
 private:
     const char* p;
 public:
     explicit Tokenizer(const char* s) : p(s ? s : "") {}
 
-    // Skip whitespace and return next non-space char or '\0'.
     void skip_ws() {
         while (*p && std::isspace(static_cast<unsigned char>(*p))) ++p;
     }
 
-    // Parse a quoted string starting at current position. Supports escapes for \" and \\\.
     std::string parse_quoted(char quote) {
         std::string out;
-        ++p; // skip opening quote
+        ++p;
         while (*p) {
             if (*p == quote) { ++p; break; }
             if (*p == '\\') {
@@ -67,7 +62,6 @@ public:
         skip_ws();
         if (!*p) return {TokenKind::End, std::string()};
 
-        // Flags that start with '/'
         if (*p == '/') {
             const char* start = p;
             ++p;
@@ -75,14 +69,12 @@ public:
             return {TokenKind::Flag, std::string(start, static_cast<size_t>(p - start))};
         }
 
-        // Quoted string
         if (*p == '"' || *p == '\'') {
             char q = *p;
             std::string s = parse_quoted(q);
             return {TokenKind::String, s};
         }
 
-        // Unquoted identifier until whitespace
         const char* start = p;
         while (*p && !std::isspace(static_cast<unsigned char>(*p))) ++p;
         return {TokenKind::Identifier, std::string(start, static_cast<size_t>(p - start))};
@@ -94,13 +86,12 @@ public:
             Token t = next();
             if (t.kind == TokenKind::End) break;
             out.push_back(std::move(t));
-            if (out.size() >= 256) break; // safety cap
+            if (out.size() >= 256) break;
         }
         return out;
     }
 };
 
-// Simple AST representing a command invocation
 struct Arg {
     bool is_flag;
     std::string text;
@@ -111,7 +102,6 @@ struct CommandAST {
     std::vector<Arg> args;
 };
 
-// Parser: builds AST from tokens
 class Parser {
 private:
     const std::vector<Token>& toks;
@@ -124,7 +114,6 @@ public:
     CommandAST parse() {
         CommandAST cmd;
         if (toks.empty()) return cmd;
-        // first token is the command name
         cmd.name = toks[0].text;
         for (size_t i = 1; i < toks.size(); ++i) {
             const Token& tk = toks[i];
@@ -137,10 +126,9 @@ public:
     }
 };
 
-} // namespace cmd
+}
 
 
-// Clear the console screen
 void ClearScreen() {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hConsole == INVALID_HANDLE_VALUE) return;
@@ -157,7 +145,6 @@ void ClearScreen() {
     SetConsoleCursorPosition(hConsole, home);
 }
 
-// Check for "/?" help flag
 bool is_help_flag_present(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "/?") == 0) return true;
@@ -165,7 +152,6 @@ bool is_help_flag_present(int argc, char** argv) {
     return false;
 }
 
-// Command implementations (unchanged semantics, slightly adapted signatures)
 int cmd_exit(int argc, char** argv) {
     if (is_help_flag_present(argc, argv)) {
         std::cout << "Run 'help exit' for information." << "\n";
@@ -253,7 +239,6 @@ int cmd_ver(int argc, char**) {
     return 0;
 }
 
-// Drive directory storage
 static std::string drive_dirs[26];
 static bool drive_dirs_initialized = false;
 
@@ -315,7 +300,6 @@ int cmd_cd(int argc, char** argv) {
     }
     if (!arg) { std::cout << currentDir << "\n"; return 0; }
 
-    // Use trimString like before but allocate a copy
     std::unique_ptr<char, decltype(&std::free)> argcopy(strdup(arg), &std::free);
     std::string target = trimString(argcopy.get());
     target = strip_quotes(target);
@@ -342,7 +326,6 @@ int cmd_cd(int argc, char** argv) {
         return 0;
     }
 
-    // Drive-specific handling
     char target_drive = std::toupper(static_cast<unsigned char>(target[0]));
     const char* after_colon = target.c_str() + 2;
 
@@ -387,7 +370,6 @@ int cmd_cd(int argc, char** argv) {
     return 1;
 }
 
-// Help system
 struct Command {
     const char* name;
     command_handler_t handler;
@@ -439,7 +421,6 @@ int cmd_help(int argc, char** argv) {
     return 0;
 }
 
-// Trim string
 char* trimString(char* str) {
     char* s = str;
     int start = 0, end = static_cast<int>(std::strlen(s)) - 1;
@@ -454,7 +435,6 @@ char* trimString(char* str) {
     return s;
 }
 
-// Run command: tokenize, parse into AST, dispatch builtins or launch process
 int run_command(char* cmdline, int /*mode*/) {
     if (!cmdline) return -1;
 
@@ -463,21 +443,17 @@ int run_command(char* cmdline, int /*mode*/) {
         if (GetCurrentDirectoryA(MAX_PATH, cwd)) set_drive_dir(std::toupper(static_cast<unsigned char>(cwd[0])), cwd);
     }
 
-    // Tokenize
     cmd::Tokenizer tok(cmdline);
     std::vector<cmd::Token> tokens = tok.tokenize();
     if (tokens.empty()) return -1;
 
-    // Parse into AST
     cmd::Parser parser(tokens);
     cmd::CommandAST ast = parser.parse();
     if (ast.name.empty()) return -1;
 
-    // Build argv array for handlers and CreateProcess
     std::vector<std::unique_ptr<char, decltype(&std::free)>> owned_strings;
     std::vector<char*> argv;
 
-    // command name
     {
         char* s = strdup(ast.name.c_str());
         owned_strings.emplace_back(s, &std::free);
@@ -491,7 +467,6 @@ int run_command(char* cmdline, int /*mode*/) {
     }
     argv.push_back(nullptr);
 
-    // Check built-in commands
     for (auto& c : commands) {
         if (!c.name) break;
         if (std::strcmp(argv[0], c.name) == 0) {
@@ -499,8 +474,6 @@ int run_command(char* cmdline, int /*mode*/) {
         }
     }
 
-    // Launch external process using original line but trimmed
-    // Create a mutable copy of the command line for CreateProcessA
     std::unique_ptr<char, decltype(&std::free)> cmd_copy(strdup(cmdline), &std::free);
     if (!cmd_copy) return -1;
     trimString(cmd_copy.get());
