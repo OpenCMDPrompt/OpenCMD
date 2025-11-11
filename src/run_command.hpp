@@ -89,6 +89,14 @@ class Tokenizer {
 
         std::string text(start, static_cast<size_t>(p - start));
 
+        if (!text.empty() && text[0] != '/' && text.find('/') != std::string::npos) {
+            size_t pos = text.find('/');
+            std::string before = text.substr(0, pos);
+            p = p - (text.size() - pos);
+            if (!before.empty())
+                return {TokenKind::Identifier, before};
+        }
+
         if (text == "echo." || text == "echo") {
             return {TokenKind::Identifier, text};
         }
@@ -264,6 +272,21 @@ bool is_help_flag_present(int argc, char **argv) {
     return false;
 }
 
+bool is_flag_present(int argc, char **argv, std::string flag) {
+    std::transform(flag.begin(), flag.end(), flag.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        std::transform(arg.begin(), arg.end(), arg.begin(),
+                       [](unsigned char c) { return std::toupper(c); });
+
+        if (arg == flag)
+            return true;
+    }
+    return false;
+}
+
 int cmd_exit(int argc, char **argv) {
     if (is_help_flag_present(argc, argv)) {
         std::cout << "Run 'help exit' for information." << "\n";
@@ -340,14 +363,12 @@ void print_drive_info(const std::string &path) {
 
 int cmd_dir(int argc, char **argv) {
     if (is_help_flag_present(argc, argv)) {
-        std::cout << "Run 'help cd' for information." << "\n";
+        std::cout << "Run 'help dir' for information." << "\n";
         return 0;
     }
 
     namespace fs = std::filesystem;
     std::string target = (argc > 1) ? argv[1] : ".";
-    print_drive_info(target);
-    std::cout << " Directory of " << canonicalize(target) << "\n\n";
 
     uintmax_t total_size = 0;
     size_t file_count = 0, dir_count = 0;
@@ -377,15 +398,25 @@ int cmd_dir(int argc, char **argv) {
     };
 
     try {
-        print_entry(target, true);
-        print_entry(target + "/..", true);
+        if (!is_flag_present(argc, argv, "/b")) {
+            print_drive_info(target);
+            std::cout << " Directory of " << canonicalize(target) << "\n\n";
 
-        for (const auto &entry : fs::directory_iterator(target)) {
-            print_entry(entry.path(), entry.is_directory());
+            print_entry(target, true);
+            print_entry(target + "/..", true);
+
+            for (const auto &entry : fs::directory_iterator(target)) {
+                print_entry(entry.path(), entry.is_directory());
+            }
+
+            std::cout << "              " << file_count << " File(s)    " << total_size
+                      << " bytes\n";
+            std::cout << "              " << dir_count << " Dir(s)\n";
+        } else {
+            for (const auto &entry : std::filesystem::directory_iterator(".")) {
+                std::cout << entry.path().filename().string() << "\n";
+            }
         }
-
-        std::cout << "              " << file_count << " File(s)    " << total_size << " bytes\n";
-        std::cout << "              " << dir_count << " Dir(s)\n";
         return 0;
     } catch (const fs::filesystem_error &) {
         std::cerr << "The system cannot find the path specified.\n";
