@@ -8,7 +8,7 @@ Install make with Chocolatey and run `run.bat`.
 
 ## Contributing
 
-We need contributors for such a large project. Anyone who wants to contribute by either submitting issues or pull requests is welcome, as long as they follow our [code of conduct](CODE_OF_CONDUCT.md].
+We need contributors for such a large project. Anyone who wants to contribute by either submitting issues or pull requests is welcome, as long as they follow our [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Roadmap
 
