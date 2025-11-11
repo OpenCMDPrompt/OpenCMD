@@ -1,13 +1,11 @@
 # OpenCMD
 
-This README contains build instructions for OpenCMD.
-
-## Dependencies
-
-Get the Cygwin installer from [cygwin.com](https://cygwin.com).
-
-Install the packages `make`, `libreadline-devel`. These are needed to build OpenCMD.
+OpenCMD is alpha software not intended as a daily driver shell. It is however getting frequent features and fixes.
 
 ## Building
 
-Simply open the Cygwin terminal and run `make`.
+Install make with Chocolatey and run `run.bat`.
+
+## Roadmap
+
+OpenCMD aims to fully reimplement the Windows command prompt, providing a free and open source actively maintained alternative.

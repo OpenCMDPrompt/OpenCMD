@@ -1,3 +1,5 @@
+#pragma comment(lib, "Advapi32.lib")
+
 #include <cstdlib>
 
 // External functions

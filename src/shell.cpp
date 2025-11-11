@@ -1,11 +1,9 @@
-#include <iostream>
-#include <string>
-#include <memory>
-#include <windows.h>
-#include <readline/readline.h>
-#include <readline/history.h>
 #include "macros.hpp"
 #include "run_command.hpp"
+#include <iostream>
+#include <memory>
+#include <string>
+#include <windows.h>
 
 #ifndef PATH_MAX
 #define PATH_MAX MAX_PATH
@@ -15,19 +13,21 @@ bool echo_enabled = true;
 std::string custom_prompt;
 
 int shell() {
-    std::cout << "OpenCMD " << VERSION 
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    std::ios_base::sync_with_stdio(false);
+    std::setlocale(LC_ALL, ".UTF-8");
+
+    std::cout << "OpenCMD " << VERSION
               << ". Visit https://www.gnu.org/licenses/gpl-3.0.en.html#license-text.\n";
 
     int last_error_code = 0;
-
-    rl_bind_key('\t', rl_complete);
 
     while (true) {
         char cwd[PATH_MAX];
         DWORD len = GetCurrentDirectoryA(sizeof(cwd), cwd);
         if (len == 0) {
-            std::cerr << "GetCurrentDirectory failed (error " 
-                      << GetLastError() << ")\n";
+            std::cerr << "GetCurrentDirectory failed (error " << GetLastError() << ")\n";
             return 1;
         }
 
@@ -42,14 +42,15 @@ int shell() {
             prompt = "";
         }
 
-        SetCurrentDirectoryA(cwd);
+        std::cout << prompt;
 
-        std::unique_ptr<char, decltype(&std::free)> input(readline(prompt.c_str()), &std::free);
-        if (!input) break;
+        std::string input;
+        if (!std::getline(std::cin, input)) {
+            break;
+        }
 
-        if (*input) {
-            int state = run_command(input.get(), SHELL_MODE);
-            add_history(input.get());
+        if (!input.empty()) {
+            int state = run_command(input.c_str(), SHELL_MODE);
             last_error_code = state;
         }
     }
