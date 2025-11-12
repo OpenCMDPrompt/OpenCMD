@@ -1,14 +1,19 @@
+#define _AMD64_
+
 #include "macros.hpp"
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fileapi.h>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <minwindef.h>
 #include <string>
 #include <vector>
 #include <windows.h>
+#include <winnt.h>
 
 extern bool echo_enabled;
 
@@ -364,9 +369,21 @@ int cmd_dir(int argc, char **argv) {
         std::cout << "Run 'help dir' for information." << "\n";
         return 0;
     }
+    bool show_hidden = false;
+    if (is_flag_present(argc, argv, "/a")) {
+        // TODO: This should support things like /ash and /ahs, where both show only hidden and
+        // system files. As a placeholder, this will just show hidden files.
+        show_hidden = true;
+    }
 
     namespace fs = std::filesystem;
-    std::string target = (argc > 1) ? argv[1] : ".";
+    std::string target = ".";
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i][0] == '/')
+            continue;
+        target = argv[i];
+        break;
+    }
 
     uintmax_t total_size = 0;
     size_t file_count = 0, dir_count = 0;
@@ -396,14 +413,43 @@ int cmd_dir(int argc, char **argv) {
     };
 
     try {
+        std::filesystem::path currentPath;
+        try {
+            currentPath = std::filesystem::current_path();
+        } catch (...) {
+            return 1;
+        }
+
+        char cur_drive = 0;
+        {
+            auto root_name = currentPath.root_name().string();
+            if (!root_name.empty() && std::isalpha(static_cast<unsigned char>(root_name[0])))
+                cur_drive = std::toupper(static_cast<unsigned char>(root_name[0]));
+        }
+        if (cur_drive == 0 && !currentPath.string().empty())
+            cur_drive = std::toupper(static_cast<unsigned char>(currentPath.string()[0]));
+
+        std::string targetPath = target;
+
+        if (target == "\\" || target == "/") {
+            targetPath = std::string(1, cur_drive) + ":\\";
+        }
+
         if (!is_flag_present(argc, argv, "/b")) {
-            print_drive_info(target);
-            std::cout << " Directory of " << canonicalize(target) << "\n\n";
+            print_drive_info(targetPath);
+            std::cout << " Directory of " << canonicalize(targetPath) << "\n\n";
 
-            print_entry(target, true);
-            print_entry(target + "/..", true);
+            print_entry(targetPath, true);
+            print_entry(targetPath + "/..", true);
 
-            for (const auto &entry : fs::directory_iterator(target)) {
+            for (const auto &entry : fs::directory_iterator(targetPath)) {
+                if (!show_hidden) {
+                    DWORD attrs = GetFileAttributesW(entry.path().c_str());
+                    if (attrs == INVALID_FILE_ATTRIBUTES)
+                        continue;
+                    if (attrs & FILE_ATTRIBUTE_HIDDEN)
+                        continue;
+                }
                 print_entry(entry.path(), entry.is_directory());
             }
 
@@ -412,7 +458,14 @@ int cmd_dir(int argc, char **argv) {
             std::cout << "              " << dir_count << " Dir(s)\n";
         } else {
             for (const auto &entry : std::filesystem::directory_iterator(".")) {
-                std::cout << entry.path().filename().string() << "\n";
+                if (!show_hidden) {
+                    DWORD attrs = GetFileAttributesW(entry.path().c_str());
+                    if (attrs == INVALID_FILE_ATTRIBUTES)
+                        continue;
+                    if (attrs & FILE_ATTRIBUTE_HIDDEN)
+                        continue;
+                }
+                std::wcout << entry.path().filename().wstring() << L"\n";
             }
         }
         return 0;

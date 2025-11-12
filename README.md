@@ -8,8 +8,8 @@ Install make with Chocolatey and run `run.bat`.
 
 ## Contributing
 
-We need contributors for such a large project. Anyone who wants to contribute by either submitting issues or pull requests is welcome, as long as they follow our [code of conduct](CODE_OF_CONDUCT.md).
+Anyone who wants to contribute by either submitting issues or pull requests is welcome, as long as they follow our [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Roadmap
 
-OpenCMD aims to fully reimplement the Windows command prompt, providing a free and open source actively maintained alternative.
+OpenCMD aims to be a reimplementation of `CMD.EXE`. Rather than fully reimplementating it, OpenCMD aims to be "good enough" to run most CMD.EXE scripts. That is still a large project, but a lot smaller than trying to fully reimplement `CMD.EXE`.
